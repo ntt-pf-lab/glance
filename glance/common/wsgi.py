@@ -20,22 +20,20 @@
 """
 Utility methods for working with WSGI servers
 """
-
-import json
-import logging
-import sys
-import time
 import datetime
-
 import eventlet
 import eventlet.wsgi
-eventlet.patcher.monkey_patch(all=False, socket=True)
+import json
+import logging
 import routes
 import routes.middleware
+import sys
 import webob.dec
 import webob.exc
 
 from glance.common import exception
+
+eventlet.patcher.monkey_patch(all=False, socket=True)
 
 
 class WritableLogger(object):
@@ -346,62 +344,3 @@ class Resource(object):
             pass
 
         return args
-
-
-class DebugLogger(Middleware):
-    """Helper class for debugging a WSGI application.
-
-    Can be inserted into any WSGI application chain to log information
-    about the request and response.
-
-    """
-
-    @classmethod
-    def factory(cls, global_config, **local_config):
-        def _factory(app):
-            return cls(app, **local_config)
-        return _factory
-
-    def __init__(self, application, **kwargs):
-        self.application = application
-        self.kwargs = kwargs
-
-    @webob.dec.wsgify
-    def __call__(self, req):
-        if len(req.body):
-            body = req.body
-        else:
-            body = '-'
-        input_params = "METHOD: %s URL: %s BODY: '%s'" % (req.method,
-                                                        req.url,
-                                                        body)
-        start_time = time.time()
-        resp = req.get_response(self.application)
-        end_time = time.time()
-
-        #set the request_id in cookie
-        if req.environ.get('context', None) and \
-           hasattr(req.environ['context'], request_id):
-            request_id = req.environ['context'].request_id
-        else:
-            request_id = 'NA'
-        resp.set_cookie('request_id', request_id)
-
-        #maximum length of response value to log.
-        MAX_RESPONSE_LEN = int(self.kwargs.get('MAX_RESPONSE_LEN', -1))
-        response_str = ''
-        for part in resp.app_iter:
-            response_str += part
-        if MAX_RESPONSE_LEN != -1:
-            response_str = response_str[0:MAX_RESPONSE_LEN]
-
-        log_str = "REQUEST ID: %s TIME: %.3f %s RESPONSE STATUS: '%s' "\
-                    "RESPONSE: '%s'" % \
-                  (request_id,
-                   end_time - start_time,
-                   input_params,
-                   resp.status,
-                   response_str)
-        LOG = logging.getLogger('eventlet.wsgi.server')
-        LOG.info(log_str)
-        return resp

@@ -537,6 +537,9 @@ class Controller(api.BaseController):
             if location:
                 image_meta = self._activate(req, image_id, location)
 
+        msg = _("Added image %s successfully." % image_id)
+        logger.info(msg)
+
         return {'image_meta': image_meta}
 
     def update(self, req, id, image_meta, image_data):
@@ -558,7 +561,9 @@ class Controller(api.BaseController):
         orig_status = orig_image_meta['status']
 
         if image_data is not None and orig_status != 'queued':
-            raise HTTPConflict(_("Cannot upload to an unqueued image"))
+            msg = _("Cannot upload to an unqueued image")
+            logger.warning(msg)
+            raise HTTPConflict(msg)
 
         try:
             image_meta = registry.update_image_metadata(self.options,
@@ -581,6 +586,9 @@ class Controller(api.BaseController):
             raise HTTPNotFound(msg, request=req, content_type="text/plain")
         else:
             self.notifier.info('image.update', image_meta)
+
+        msg = _("Updated metadata of image %s successfully." % id)
+        logger.info(msg)
 
         return {'image_meta': image_meta}
 
@@ -714,12 +722,15 @@ class Controller(api.BaseController):
                                      image_id, body)
         except exception.NotFound, e:
             msg = "%s" % e
-            logger.debug(msg)
+            logger.warning(msg)
             raise HTTPNotFound(msg, request=req, content_type='text/plain')
         except exception.NotAuthorized, e:
             msg = "%s" % e
             logger.debug(msg)
             raise HTTPNotFound(msg, request=req, content_type='text/plain')
+
+        msg = _("Replaced members of image %s successfully." % image_id)
+        logger.info(msg)
 
         return HTTPNoContent()
 
@@ -750,12 +761,16 @@ class Controller(api.BaseController):
                                 can_share)
         except exception.NotFound, e:
             msg = "%s" % e
-            logger.debug(msg)
+            logger.warning(msg)
             raise HTTPNotFound(msg, request=req, content_type='text/plain')
         except exception.NotAuthorized, e:
             msg = "%s" % e
             logger.debug(msg)
             raise HTTPNotFound(msg, request=req, content_type='text/plain')
+
+        msg = _("Added member %s for image %s successfully." % (member,
+                                                                image_id))
+        logger.info(msg)
 
         return HTTPNoContent()
 
@@ -779,6 +794,10 @@ class Controller(api.BaseController):
             msg = "%s" % e
             logger.debug(msg)
             raise HTTPNotFound(msg, request=req, content_type='text/plain')
+
+        msg = _("Deleted member %s of image %s successfully." % (member,
+                                                                 image_id))
+        logger.info(msg)
 
         return HTTPNoContent()
 

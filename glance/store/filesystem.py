@@ -139,7 +139,7 @@ class Store(glance.store.base.Store):
             raise exception.NotFound(_("Image file %s not found") % filepath)
         else:
             msg = _("Found image at %s. Returning in ChunkedFile.") % filepath
-            logger.debug(msg)
+            logger.info(msg)
             return (ChunkedFile(filepath), None)
 
     def delete(self, location):

@@ -717,6 +717,20 @@ class Controller(api.BaseController):
         elif req.context.owner is None:
             raise HTTPUnauthorized(_("No authenticated user"))
 
+        invalid_request = False
+        if body and 'memberships' in body and \
+            isinstance(body['memberships'], (list, tuple)):
+            for member in body['memberships']:
+                if not isinstance(member, dict) or 'member_id' not in member:
+                    invalid_request = True
+                    break
+        else:
+            invalid_request = True
+        if invalid_request:
+            msg = _("Invalid membership data provided.")
+            logger.error(msg)
+            raise HTTPBadRequest(explanation=msg)
+
         try:
             registry.replace_members(self.options, req.context,
                                      image_id, body)

@@ -38,7 +38,6 @@ from glance import image_cache
 from glance.common import exception
 from glance.common import notifier
 from glance.common import wsgi
-from glance.registry.db.api import CONTAINER_FORMATS, DISK_FORMATS, STATUSES
 import glance.store
 import glance.store.filesystem
 import glance.store.http
@@ -110,9 +109,6 @@ class Controller(api.BaseController):
             ]}
         """
         params = self._get_query_params(req)
-        status = self._validate_filter_values(params['filters'])
-        if not status:
-            raise HTTPBadRequest("Invalid filters specified.")
         try:
             images = registry.get_images_list(self.options, req.context,
                                               **params)
@@ -146,9 +142,6 @@ class Controller(api.BaseController):
             ]}
         """
         params = self._get_query_params(req)
-        status = self._validate_filter_values(params['filters'])
-        if not status:
-            raise HTTPBadRequest("Invalid filters specified.")
         try:
             images = registry.get_images_detail(self.options, req.context,
                                                 **params)
@@ -189,49 +182,6 @@ class Controller(api.BaseController):
                 filters[param] = req.str_params.get(param)
 
         return filters
-
-    def _validate_filter_values(self, filter_dict):
-        """
-        Return a dictionary of query param filters from the request
-
-        :param filter_dict: a dict of key/value filters
-        :raise BadRequest exception if any field has invalid value.
-        """
-        status = True
-        for field, value in filter_dict.iteritems():
-            if field == 'status':
-                if value not in STATUSES:
-                    status = False
-                    break
-            elif field == 'container_format':
-                if value not in CONTAINER_FORMATS:
-                    status = False
-                    break
-            elif field == 'disk_format':
-                if value not in DISK_FORMATS:
-                    status = False
-                    break
-            elif field == 'is_public':
-                if value not in ('True', 'False'):
-                    status = False
-                    break
-            elif field in ('min_ram', 'min_disk', 'size_min', 'size_max'):
-                try:
-                    value = int(value)
-                    if value < 0:
-                        status = False
-                    if field in ('size_min', 'size_max') and value == 0:
-                        status = False
-                except ValueError:
-                    status = False
-                finally:
-                    if not status:
-                        break
-        if status and filter_dict.get('size_min') and \
-                filter_dict.get('size_max'):
-            if int(filter_dict['size_min']) > int(filter_dict['size_max']):
-                status = False
-        return status
 
     def meta(self, req, id):
         """

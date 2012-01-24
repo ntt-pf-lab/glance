@@ -156,10 +156,58 @@ class Controller(object):
                 _param = param[9:]
                 properties[_param] = req.str_params.get(param)
 
+        if not self._validate_filter_values(filters):
+            raise exc.HTTPBadRequest(_("Invalid filters specified"))
         if len(properties) > 0:
             filters['properties'] = properties
 
         return filters
+
+    def _validate_filter_values(self, filter_dict):
+        """
+        Validates the query param filters from the request
+
+        :param filter_dict: a dict of key/value filters
+        :return status: False if any param has bad value.
+        """
+        fp = open("/tmp/debug1.txt", "w")
+        fp.write(str(filter_dict))
+        fp.close()
+        status = True
+        for field, value in filter_dict.iteritems():
+            if field == 'status':
+                if value not in db_api.STATUSES:
+                    status = False
+                    break
+            elif field == 'container_format':
+                if value not in db_api.CONTAINER_FORMATS:
+                    status = False
+                    break
+            elif field == 'disk_format':
+                if value not in db_api.DISK_FORMATS:
+                    status = False
+                    break
+            elif field == 'is_public':
+                if value and value not in (True, False):
+                    status = False
+                    break
+            elif field in ('min_ram', 'min_disk', 'size_min', 'size_max'):
+                try:
+                    value = int(value)
+                    if value < 0:
+                        status = False
+                    if field in ('size_min', 'size_max') and value == 0:
+                        status = False
+                except ValueError:
+                    status = False
+                finally:
+                    if not status:
+                        break
+        if status and filter_dict.get('size_min') and \
+                filter_dict.get('size_max'):
+            if int(filter_dict['size_min']) > int(filter_dict['size_max']):
+                status = False
+        return status
 
     def _get_limit(self, req):
         """Parse a limit query param into something usable."""

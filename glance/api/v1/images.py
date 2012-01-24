@@ -31,7 +31,8 @@ from webob.exc import (HTTPNotFound,
                        HTTPBadRequest,
                        HTTPForbidden,
                        HTTPNoContent,
-                       HTTPUnauthorized)
+                       HTTPUnauthorized,
+                       HTTPInternalServerError)
 
 from glance import api
 from glance import image_cache
@@ -407,6 +408,14 @@ class Controller(api.BaseController):
             self._safe_kill(req, image_id)
             self.notifier.error('image.upload', msg)
             raise HTTPForbidden(msg, request=req,
+                                content_type='text/plain')
+
+        except IOError, e:
+            msg = _("Error: %s") % e
+            logger.error(msg)
+            self._safe_kill(req, image_id)
+            self.notifier.error('image.upload', msg)
+            raise HTTPInternalServerError(msg, request=req,
                                 content_type='text/plain')
 
         except Exception, e:

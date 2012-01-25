@@ -32,7 +32,8 @@ from webob.exc import (HTTPNotFound,
                        HTTPForbidden,
                        HTTPNoContent,
                        HTTPUnauthorized,
-                       HTTPInternalServerError)
+                       HTTPServiceUnavailable,
+                       HTTPRequestEntityTooLarge)
 
 from glance import api
 from glance import image_cache
@@ -415,8 +416,13 @@ class Controller(api.BaseController):
             logger.error(msg)
             self._safe_kill(req, image_id)
             self.notifier.error('image.upload', msg)
-            raise HTTPInternalServerError(msg, request=req,
-                                content_type='text/plain')
+            if e.message.find("[Errno 28]") != -1:
+                #Error: No space left on device.
+                raise HTTPRequestEntityTooLarge(msg, request=req,
+                                    content_type='text/plain')
+            else:
+                raise HTTPServiceUnavailable(msg, request=req,
+                                    content_type='text/plain')
 
         except Exception, e:
             tb_info = traceback.format_exc()

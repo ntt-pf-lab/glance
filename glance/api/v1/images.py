@@ -719,7 +719,7 @@ class Controller(api.BaseController):
 
         invalid_request = False
         if body and 'memberships' in body and \
-            isinstance(body['memberships'], (list, tuple)):
+            isinstance(body['memberships'], list):
             for member in body['memberships']:
                 if not isinstance(member, dict) or 'member_id' not in member:
                     invalid_request = True

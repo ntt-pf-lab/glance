@@ -156,58 +156,70 @@ class Controller(object):
                 _param = param[9:]
                 properties[_param] = req.str_params.get(param)
 
-        if not self._validate_filter_values(filters):
-            raise exc.HTTPBadRequest(_("Invalid filters specified"))
+        self._validate_filter_values(filters)
         if len(properties) > 0:
             filters['properties'] = properties
 
         return filters
+
+    def _validate_size(self, field, value, is_zero_valid=False):
+        msg = ''
+        try:
+            value = int(value)
+        except ValueError:
+            msg = _("Invalid %(field)s value %(value)s") % locals()
+        else:
+            if is_zero_valid and value < 0:
+                msg = _("Invalid %(field)s value %(value)s") % locals()
+            if not is_zero_valid and value <= 0:
+                msg = _("Invalid %(field)s value %(value)s") % locals()
+        if msg:
+            raise exc.HTTPBadRequest(msg)
 
     def _validate_filter_values(self, filter_dict):
         """
         Validates the query param filters from the request
 
         :param filter_dict: a dict of key/value filters
-        :return status: False if any param has bad value.
+        :raises a BadRequest exception with appropriate error message.
         """
-        fp = open("/tmp/debug1.txt", "w")
-        fp.write(str(filter_dict))
-        fp.close()
-        status = True
-        for field, value in filter_dict.iteritems():
-            if field == 'status':
-                if value not in db_api.STATUSES:
-                    status = False
-                    break
-            elif field == 'container_format':
-                if value not in db_api.CONTAINER_FORMATS:
-                    status = False
-                    break
-            elif field == 'disk_format':
-                if value not in db_api.DISK_FORMATS:
-                    status = False
-                    break
-            elif field == 'is_public':
-                if value and value not in (True, False):
-                    status = False
-                    break
-            elif field in ('min_ram', 'min_disk', 'size_min', 'size_max'):
-                try:
-                    value = int(value)
-                    if value < 0:
-                        status = False
-                    if field in ('size_min', 'size_max') and value == 0:
-                        status = False
-                except ValueError:
-                    status = False
-                finally:
-                    if not status:
-                        break
-        if status and filter_dict.get('size_min') and \
-                filter_dict.get('size_max'):
+        if 'status' in filter_dict:
+            if filter_dict['status'] not in db_api.STATUSES:
+                msg = _("Invalid status value %(status)s")
+                raise exc.HTTPBadRequest(msg % filter_dict.__dict__)
+
+        if 'container_format' in filter_dict:
+            if filter_dict['container_format'] not in db_api.CONTAINER_FORMATS:
+                msg = _("Invalid container_format value %(container_format)s")
+                raise exc.HTTPBadRequest(msg % filter_dict.__dict__)
+
+        if 'disk_format' in filter_dict:
+            if filter_dict['disk_format'] not in db_api.DISK_FORMATS:
+                msg = _("Invalid disk_format value %(disk_format)s")
+                raise exc.HTTPBadRequest(msg % filter_dict.__dict__)
+
+        if 'is_public' in filter_dict:
+            value = filter_dict['is_public']
+            if value and value not in (True, False):
+                msg = _("Invalid is_public value %(is_public)s")
+                raise exc.HTTPBadRequest(msg % filter_dict.__dict__)
+
+        if 'min_ram' in filter_dict:
+            self._validate_size('min_ram', filter_dict['min_ram'], True)
+
+        if 'min_disk' in filter_dict:
+            self._validate_size('min_disk', filter_dict['min_disk'], True)
+
+        if 'size_min' in filter_dict:
+            self._validate_size('size_min', filter_dict['size_min'], False)
+
+        if 'size_max' in filter_dict:
+            self._validate_size('size_max', filter_dict['size_max'], False)
+
+        if filter_dict.get('size_min') and filter_dict.get('size_max'):
             if int(filter_dict['size_min']) > int(filter_dict['size_max']):
-                status = False
-        return status
+                msg = _("size_min value cannot be greater than size_max.")
+                raise exc.HTTPBadRequest(msg)
 
     def _get_limit(self, req):
         """Parse a limit query param into something usable."""

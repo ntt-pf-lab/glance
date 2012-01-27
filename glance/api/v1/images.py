@@ -18,7 +18,7 @@
 """
 /images endpoint for Glance v1 API
 """
-
+import errno
 import httplib
 import json
 import logging
@@ -416,7 +416,7 @@ class Controller(api.BaseController):
             logger.error(msg)
             self._safe_kill(req, image_id)
             self.notifier.error('image.upload', msg)
-            if e.message.find("[Errno 28]") != -1:
+            if e.errno == errno.ENOSPC:
                 #Error: No space left on device.
                 raise HTTPRequestEntityTooLarge(msg, request=req,
                                     content_type='text/plain')

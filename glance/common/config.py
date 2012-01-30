@@ -56,6 +56,7 @@ class GlanceLogger(logging.Logger):
 
 
 logging.setLoggerClass(GlanceLogger)
+_binary_name = ''  # appropriate value set from setup_logging.
 
 
 def _get_binary_name():

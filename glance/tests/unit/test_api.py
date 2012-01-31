@@ -1775,6 +1775,198 @@ class TestRegistryAPI(unittest.TestCase):
         res = req.get_response(self.api)
         self.assertEquals(res.status_int, webob.exc.HTTPUnauthorized.code)
 
+    def test_get_index_filter_size(self):
+        """Ensure a 400 is returned when a bad size filter is provided."""
+        extra_fixture = {'id': 3,
+                         'status': 'queued',
+                         'is_public': True,
+                         'disk_format': 'vhd',
+                         'container_format': 'ovf',
+                         'name': 'asdf',
+                         'size': 25,
+                         'checksum': None}
+
+        db_api.image_create(self.context, extra_fixture)
+
+        req = webob.Request.blank('/images?size_min=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?size_min=0')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?size_min=invalid')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        sort_params = "sort_key=id&sort_dir=asc"
+        req = webob.Request.blank('/images?size_min=10&%s' % sort_params)
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 2)
+        self.assertEquals(int(images[0]['id']), 2)
+        self.assertEquals(int(images[1]['id']), 3)
+
+        req = webob.Request.blank('/images?size_max=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?size_max=0')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?size_min=20&size_max=10')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?size_max=20')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 1)
+        self.assertEquals(int(images[0]['id']), 2)
+
+        req = webob.Request.blank('/images?size_min=10&size_max=20')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 1)
+        self.assertEquals(int(images[0]['id']), 2)
+
+    def test_get_index_filter_min_disk(self):
+        """Ensure a 400 is returned when a bad min_disk filter is provided."""
+        req = webob.Request.blank('/images?min_disk=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?min_disk=0')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+
+        req = webob.Request.blank('/images?min_disk=1000')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+
+        req = webob.Request.blank('/images?min_disk=invalid')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+    def test_get_index_filter_min_ram(self):
+        """Ensure a 400 is returned when a bad min_ram filter is provided."""
+        req = webob.Request.blank('/images?min_ram=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?min_ram=0')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+
+        req = webob.Request.blank('/images?min_ram=1000')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+
+        req = webob.Request.blank('/images?min_ram=invalid')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+    def test_get_index_filter_disk_format(self):
+        """Ensure a 400 is returned when a bad disk_format is provided."""
+        extra_fixture = {'id': 3,
+                         'status': 'queued',
+                         'is_public': True,
+                         'disk_format': 'raw',
+                         'container_format': 'ovf',
+                         'name': 'asdf',
+                         'size': 25,
+                         'checksum': None}
+
+        db_api.image_create(self.context, extra_fixture)
+        req = webob.Request.blank('/images?disk_format=xyz')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?disk_format=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?disk_format=raw')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 1)
+        self.assertEquals(int(images[0]['id']), 3)
+
+    def test_get_index_filter_container_format(self):
+        """Ensure a 400 is returned when a bad container_format is provided."""
+        extra_fixture = {'id': 3,
+                         'status': 'queued',
+                         'is_public': True,
+                         'disk_format': 'ami',
+                         'container_format': 'ami',
+                         'name': 'asdf',
+                         'size': 25,
+                         'checksum': None}
+
+        db_api.image_create(self.context, extra_fixture)
+        req = webob.Request.blank('/images?container_format=invalid')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?container_format=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?container_format=ovf')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 1)
+        self.assertEquals(int(images[0]['id']), 2)
+
+    def test_get_index_filter_status(self):
+        """Ensure a 400 is returned when a bad status is provided."""
+        extra_fixture = {'id': 3,
+                         'status': 'queued',
+                         'is_public': True,
+                         'disk_format': 'vhd',
+                         'container_format': 'ovf',
+                         'name': 'asdf',
+                         'size': 19,
+                         'checksum': None}
+
+        db_api.image_create(self.context, extra_fixture)
+
+        req = webob.Request.blank('/images?status=invalid')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?status=-1')
+        res = req.get_response(self.api)
+        self.assertEqual(400, res.status_int)
+
+        req = webob.Request.blank('/images?status=active')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 1)
+        self.assertEquals(int(images[0]['id']), 2)
+
+        req = webob.Request.blank('/images?status=queued')
+        res = req.get_response(self.api)
+        self.assertEqual(200, res.status_int)
+        res_dict = json.loads(res.body)
+        images = res_dict['images']
+        self.assertEquals(len(images), 1)
+        self.assertEquals(int(images[0]['id']), 3)
+
 
 class TestGlanceAPI(unittest.TestCase):
     def setUp(self):

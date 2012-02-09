@@ -236,9 +236,14 @@ EXAMPLES
     image_location = image_meta.get('location')
     image_data = None
     if not image_location:
-        # Grab the image data stream from stdin or redirect,
+        # Grab the image data stream from redirect,
         # otherwise error out
-        image_data = sys.stdin
+        if sys.stdin.isatty():
+            print _("Either supply a location=LOCATION argument or supply ")
+            print _("image data via a redirect.")
+            return FAILURE
+        else:
+            image_data = sys.stdin
     else:
         # Ensure no image data has been given
         if not sys.stdin.isatty():

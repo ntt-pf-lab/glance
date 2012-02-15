@@ -22,6 +22,7 @@ import errno
 import logging
 
 import xattr
+from webob.exc import HTTPBadRequest
 
 logger = logging.getLogger('glance.utils')
 
@@ -260,3 +261,23 @@ def inc_xattr(path, key, n=1):
         # and the key is present
         count += n
         set_xattr(path, key, str(count))
+
+
+def validate_string(property_name, value, mandatory=False, max_len=255):
+    """Validate the value of the provided property."""
+    if mandatory and not value:
+        msg = _("%s cannot be empty.") % property_name
+        raise HTTPBadRequest(msg)
+
+    if value:
+        try:
+            value = value.strip()
+        except AttributeError:
+            msg = _("%s is not a string or unicode") % property_name
+            raise HTTPBadRequest(msg)
+
+        if len(value) > max_len:
+            msg = _("%(property_name)s should not be greater than "\
+                    "%(max_len)s characters.") % locals()
+            raise HTTPBadRequest(msg)
+    return value

@@ -278,15 +278,6 @@ class Controller(api.BaseController):
             'image_meta': image,
         }
 
-    def _validate_image_name(self, req, image_meta):
-        name = image_meta.get('name', None)
-        if isinstance(name, str) and \
-           len(name.strip()) > 255:
-            msg = _("Image name should not be greater than 255 characters")
-            logger.error(msg)
-            raise HTTPBadRequest(msg, request=req, content_type="text/plain")
-        return True
-
     def _reserve(self, req, image_meta):
         """
         Adds the image metadata to the registry and assigns
@@ -300,7 +291,8 @@ class Controller(api.BaseController):
         :raises HTTPBadRequest if image metadata is not valid
         """
         #validate image name length
-        status = self._validate_image_name(req, image_meta)
+        name = image_meta.get('name', None)
+        image_meta['name'] = utils.validate_string('Image name', name, True)
 
         location = image_meta.get('location')
         if location:
@@ -584,7 +576,10 @@ class Controller(api.BaseController):
             raise HTTPForbidden(msg, request=req,
                                 content_type="text/plain")
         #validate image name length
-        status = self._validate_image_name(req, image_meta)
+        name = image_meta.get('name', None)
+        if name:
+            image_meta['name'] = utils.validate_string('Image name', name,
+                                                       False)
 
         orig_image_meta = self.get_image_meta_or_404(req, id)
         orig_status = orig_image_meta['status']

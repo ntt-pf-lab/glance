@@ -605,6 +605,7 @@ class TestApi(functional.FunctionalTest):
         self.cleanup()
         self.start_servers()
 
+        headers = {'X-Image-Meta-Name': 'Image1'}
         # POST /images with binary data, but not setting
         # Content-Type to application/octet-stream, verify a
         # 400 returned and that the error is readable.
@@ -614,7 +615,8 @@ class TestApi(functional.FunctionalTest):
         path = "http://%s:%d/v1/images" % ("0.0.0.0", self.api_port)
         http = httplib2.Http()
         response, content = http.request(path, 'POST',
-                            body=test_data_file.name)
+                            body=test_data_file.name,
+                            headers=headers)
         self.assertEqual(response.status, 400)
         expected = "Content-Type must be application/octet-stream"
         self.assertTrue(expected in content,

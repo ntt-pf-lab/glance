@@ -572,6 +572,16 @@ class Controller(api.BaseController):
             raise HTTPForbidden(msg, request=req,
                                 content_type="text/plain")
 
+        location = image_meta.get('location')
+        if location:
+            #check if the image exists at specified location
+            try:
+                data, size = get_from_backend(location)
+            except exception.UnknownScheme, e:
+                raise HTTPBadRequest(explanation="%s" % e)
+            except exception.NotFound, e:
+                raise HTTPNotFound(explanation="%s" % e)
+
         orig_image_meta = self.get_image_meta_or_404(req, id)
         orig_status = orig_image_meta['status']
 

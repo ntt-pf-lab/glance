@@ -172,9 +172,11 @@ size                Optional. Should be size in bytes of the image if
 is_public           Optional. If specified, interpreted as a boolean value
                     and sets or unsets the image's availability to the public.
                     The default value is False.
-disk_format         Optional. Possible values are 'vhd','vmdk','raw', 'qcow2',
+disk_format         Mandatory if format is either 'aki', 'ari' or 'ami'.
+                    Possible values are 'vhd','vmdk','raw', 'qcow2',
                     and 'ami'. Default value is 'raw'.
-container_format    Optional. Possible values are 'ovf' and 'ami'.
+container_format    Mandatory if format is either 'aki', 'ari' or 'ami'.
+                    Possible values are 'ovf', 'aki', 'ari' and 'ami'.
                     Default value is 'ovf'.
 location            Optional. When specified, should be a readable location
                     in the form of a URI: $STORE://LOCATION. For example, if
@@ -303,8 +305,10 @@ name                A name for the image.
 location            The location of the image.
 is_public           If specified, interpreted as a boolean value
                     and sets or unsets the image's availability to the public.
-disk_format         Format of the disk image
-container_format    Format of the container
+disk_format         Format of the disk image.
+                    Mandatory if format is either 'aki', 'ari' or 'ami'.
+container_format    Format of the container.
+                    Mandatory if format is either 'aki', 'ari' or 'ami'.
 
 All other field names are considered to be custom properties so be careful
 to spell field names correctly. :)"""

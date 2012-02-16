@@ -270,14 +270,13 @@ def validate_string(property_name, value, mandatory=False, max_len=255):
         raise HTTPBadRequest(msg)
 
     if value:
-        try:
-            value = value.strip()
-        except AttributeError:
+        if not isinstance(value, basestring):
             msg = _("%s is not a string or unicode") % property_name
             raise HTTPBadRequest(msg)
-
+        if mandatory and len(value) == 0:
+            msg = _("%s cannot be empty.") % property_name
+            raise HTTPBadRequest(msg)
         if len(value) > max_len:
             msg = _("%(property_name)s should not be greater than "\
                     "%(max_len)s characters.") % locals()
             raise HTTPBadRequest(msg)
-    return value

@@ -291,8 +291,7 @@ class Controller(api.BaseController):
         :raises HTTPBadRequest if image metadata is not valid
         """
         #validate image name length
-        name = image_meta.get('name', None)
-        image_meta['name'] = utils.validate_string('Image name', name, True)
+        utils.validate_string(_('Image name'), image_meta.get('name'), True)
 
         location = image_meta.get('location')
         if location:
@@ -576,10 +575,8 @@ class Controller(api.BaseController):
             raise HTTPForbidden(msg, request=req,
                                 content_type="text/plain")
         #validate image name length
-        name = image_meta.get('name', None)
-        if name:
-            image_meta['name'] = utils.validate_string('Image name', name,
-                                                       False)
+        if 'name' in image_meta:
+            utils.validate_string(_('Image name'), image_meta['name'], True)
 
         orig_image_meta = self.get_image_meta_or_404(req, id)
         orig_status = orig_image_meta['status']

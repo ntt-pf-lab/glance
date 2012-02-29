@@ -22,9 +22,10 @@ Defines interface for DB access
 """
 
 import logging
+import time
 
 from sqlalchemy import asc, create_engine, desc
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload
@@ -38,6 +39,8 @@ from glance.registry.db import models
 
 _ENGINE = None
 _MAKER = None
+_MAX_RETRIES = None
+_RETRY_INTERVAL = None
 BASE = models.BASE
 logger = None
 
@@ -66,6 +69,8 @@ def configure_db(options):
     """
     global _ENGINE
     global logger
+    global _MAX_RETRIES
+    global _RETRY_INTERVAL
     if not _ENGINE:
         debug = config.get_option(
             options, 'debug', type='bool', default=False)
@@ -73,6 +78,10 @@ def configure_db(options):
             options, 'verbose', type='bool', default=False)
         timeout = config.get_option(
             options, 'sql_idle_timeout', type='int', default=3600)
+        _MAX_RETRIES = config.get_option(
+            options, 'sql_max_retries', type='int', default=10)
+        _RETRY_INTERVAL = config.get_option(
+            options, 'sql_retry_interval', type='int', default=1)
         _ENGINE = create_engine(options['sql_connection'],
                                 pool_recycle=timeout)
         logger = logging.getLogger('sqlalchemy.engine')
@@ -80,7 +89,7 @@ def configure_db(options):
             logger.setLevel(logging.DEBUG)
         elif verbose:
             logger.setLevel(logging.INFO)
-
+        ensure_connection()
         models.register_models(_ENGINE)
 
 
@@ -99,7 +108,28 @@ def get_session(autocommit=True, expire_on_commit=False):
         _MAKER = sessionmaker(bind=_ENGINE,
                               autocommit=autocommit,
                               expire_on_commit=expire_on_commit)
+    ensure_connection()
     return _MAKER()
+
+
+def ensure_connection():
+    """Ensure db connection is active, if not connects to db"""
+    global _ENGINE
+    global _MAX_RETRIES
+    global _RETRY_INTERVAL
+    remaining_attempts = _MAX_RETRIES
+    while True:
+        try:
+            _ENGINE.connect()
+            return
+        except OperationalError:
+            if remaining_attempts == 0:
+                raise
+            logger.warning(_('SQL connection failed. '
+                          '%d attempts left.'),
+                           remaining_attempts)
+            time.sleep(_RETRY_INTERVAL)
+            remaining_attempts -= 1
 
 
 def image_create(context, values):

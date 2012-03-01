@@ -23,9 +23,10 @@ Defines interface for DB access
 
 import logging
 import time
+import sqlalchemy.interfaces
 
 from sqlalchemy import asc, create_engine, desc
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, DisconnectionError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload
@@ -60,6 +61,19 @@ STATUSES = ['active', 'saving', 'queued', 'killed', 'pending_delete',
             'deleted']
 
 
+class ConnectionChecker(object):
+    def checkout(self, dbapi_con, con_record, con_proxy):
+        """Called when connection is checked out from pool."""
+        global _RETRY_INTERVAL
+        try:
+            dbapi_con.ping()
+        except dbapi_con.OperationalError:
+            logger.warning(_('SQL connection failed, reconnecting'))
+            time.sleep(_RETRY_INTERVAL)
+            # raise SQLAlchemy exception, so that it will reconnect.
+            raise DisconnectionError("Database server went away")
+
+
 def configure_db(options):
     """
     Establish the database, create an engine if needed, and
@@ -82,8 +96,12 @@ def configure_db(options):
             options, 'sql_max_retries', type='int', default=10)
         _RETRY_INTERVAL = config.get_option(
             options, 'sql_retry_interval', type='int', default=1)
+        create_options = {'pool_recycle': timeout}
+        if options['sql_connection'].startswith('mysql'):
+            create_options['listeners'] = [ConnectionChecker()]
+
         _ENGINE = create_engine(options['sql_connection'],
-                                pool_recycle=timeout)
+                                **create_options)
         logger = logging.getLogger('sqlalchemy.engine')
         if debug:
             logger.setLevel(logging.DEBUG)
@@ -108,7 +126,6 @@ def get_session(autocommit=True, expire_on_commit=False):
         _MAKER = sessionmaker(bind=_ENGINE,
                               autocommit=autocommit,
                               expire_on_commit=expire_on_commit)
-    ensure_connection()
     return _MAKER()
 
 

@@ -23,10 +23,9 @@ Defines interface for DB access
 
 import logging
 import time
-import sqlalchemy.interfaces
 
 from sqlalchemy import asc, create_engine, desc
-from sqlalchemy.exc import IntegrityError, OperationalError, DisconnectionError
+from sqlalchemy.exc import IntegrityError, OperationalError, DBAPIError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import exc
 from sqlalchemy.orm import joinedload
@@ -61,19 +60,6 @@ STATUSES = ['active', 'saving', 'queued', 'killed', 'pending_delete',
             'deleted']
 
 
-class ConnectionChecker(object):
-    def checkout(self, dbapi_con, con_record, con_proxy):
-        """Called when connection is checked out from pool."""
-        global _RETRY_INTERVAL
-        try:
-            dbapi_con.ping()
-        except dbapi_con.OperationalError:
-            logger.warning(_('SQL connection failed, reconnecting'))
-            time.sleep(_RETRY_INTERVAL)
-            # raise SQLAlchemy exception, so that it will reconnect.
-            raise DisconnectionError("Database server went away")
-
-
 def configure_db(options):
     """
     Establish the database, create an engine if needed, and
@@ -97,17 +83,15 @@ def configure_db(options):
         _RETRY_INTERVAL = config.get_option(
             options, 'sql_retry_interval', type='int', default=1)
         create_options = {'pool_recycle': timeout}
-        if options['sql_connection'].startswith('mysql'):
-            create_options['listeners'] = [ConnectionChecker()]
 
         _ENGINE = create_engine(options['sql_connection'],
                                 **create_options)
+        _ENGINE.create = wrap_db_error(_ENGINE.create)
         logger = logging.getLogger('sqlalchemy.engine')
         if debug:
             logger.setLevel(logging.DEBUG)
         elif verbose:
             logger.setLevel(logging.INFO)
-        ensure_connection()
         models.register_models(_ENGINE)
 
 
@@ -126,27 +110,52 @@ def get_session(autocommit=True, expire_on_commit=False):
         _MAKER = sessionmaker(bind=_ENGINE,
                               autocommit=autocommit,
                               expire_on_commit=expire_on_commit)
-    return _MAKER()
+    session = _MAKER()
+    session.query = wrap_db_error(session.query)
+    session.flush = wrap_db_error(session.flush)
+    session.execute = wrap_db_error(session.execute)
+    session.begin = wrap_db_error(session.begin)
+    return session
 
 
-def ensure_connection():
-    """Ensure db connection is active, if not connects to db"""
-    global _ENGINE
-    global _MAX_RETRIES
-    global _RETRY_INTERVAL
-    remaining_attempts = _MAX_RETRIES
-    while True:
+def is_db_connection_error(args):
+    """Return True if error in connecting to db."""
+    conn_err_codes = ('2002', '2006')
+    for err_code in conn_err_codes:
+        if args.find(err_code) != -1:
+            return True
+    return False
+
+
+def wrap_db_error(f):
+    """Retry DB connection. Copied from nova and modified."""
+    def _wrap(*args, **kwargs):
         try:
-            _ENGINE.connect()
-            return
-        except OperationalError:
-            if remaining_attempts == 0:
+            return f(*args, **kwargs)
+        except OperationalError, e:
+            if not is_db_connection_error(e.args[0]):
                 raise
-            logger.warning(_('SQL connection failed. '
-                          '%d attempts left.'),
-                           remaining_attempts)
-            time.sleep(_RETRY_INTERVAL)
-            remaining_attempts -= 1
+
+            global _MAX_RETRIES
+            global _RETRY_INTERVAL
+            remaining_attempts = _MAX_RETRIES
+            while True:
+                logger.warning(_('SQL connection failed. %d attempts left.'),
+                                remaining_attempts)
+                remaining_attempts -= 1
+                time.sleep(_RETRY_INTERVAL)
+                try:
+                    return f(*args, **kwargs)
+                except OperationalError, e:
+                    if remaining_attempts == 0 or \
+                       not is_db_connection_error(e.args[0]):
+                        raise
+                except DBAPIError:
+                    raise
+        except DBAPIError:
+            raise
+    _wrap.func_name = f.func_name
+    return _wrap
 
 
 def image_create(context, values):
